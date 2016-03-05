@@ -20,15 +20,15 @@ function kernel_ichol(data::SVM_train_data,
     n, m = size(data.X)
     H = spzeros(n, m)
     v = [K(data.X[i, :], data.X[i, :], kernel) for i in 1:n]
-    ~, pivot = findmax(v)
+    relative_pivot, pivot = findmax(v)
     k = 1
     I = [pivot]
     J = setdiff(collect(1:n), I)
-    norm_v = norm(v)
-    print("iter: ", k, "; norm(v): ", norm_v, "\n")
-    tol = (1 + norm_v) * tol
+    base_pivot = relative_pivot
+    relative_pivot /= base_pivot
+    print("iter: ", k, "; rel_pivot: ", relative_pivot, "\n")
 
-    while norm_v > tol
+    while relative_pivot > tol
 
         H[pivot, k] = sqrt(v[pivot])
 
@@ -43,12 +43,12 @@ function kernel_ichol(data::SVM_train_data,
         end
 
         v -= H[:, k].^2
-        norm_v = norm(v)
-        ~, pivot = findmax(v)
+        relative_pivot, pivot = findmax(v)
+        relative_pivot /= base_pivot
         J = setdiff(J, [pivot])
         I = union(I, [pivot])
         k += 1
-        print("iter: ", k, "; norm(v): ", norm_v, "\n")
+        print("iter: ", k, "; rel_pivot: ", relative_pivot, "\n")
 
     end
 
@@ -137,10 +137,12 @@ function distributed_kernel_ichol(X::Array{Float64},
     # Find pivot
     pivot = pmap(fetch, [(@spawnat pids[i] findmax(localpart(v))) for i in 1:N])
     (pivot, local_pivot_index), pivot_proc_index = findmax(pivot)
+    base_pivot = pivot
+    relative_pivot = pivot / base_pivot
     global_pivot_index = indexes[pivot_proc_index][1][local_pivot_index]
-    print("pivot: ", pivot, ' ', "index: ", global_pivot_index, "\n")
+    print("rel_pivot: ", relative_pivot, ' ', "index: ", global_pivot_index, "\n")
 
-    while pivot > tol
+    while relative_pivot > tol
 
         # Add pivot to local indexes
         H[global_pivot_index, k] = sqrt(pivot)
@@ -178,8 +180,9 @@ function distributed_kernel_ichol(X::Array{Float64},
         # Find pivot
         pivot = pmap(fetch, [(@spawnat pids[i] findmax(localpart(v))) for i in 1:N])
         (pivot, local_pivot_index), pivot_proc_index = findmax(pivot)
+        relative_pivot = pivot / base_pivot
         global_pivot_index = indexes[pivot_proc_index][1][local_pivot_index]
-        print("pivot: ", pivot, ' ', "index: ", global_pivot_index, "\n")
+        print("rel_pivot: ", relative_pivot, ' ', "index: ", global_pivot_index, "\n")
 
     end
 
