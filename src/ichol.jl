@@ -11,14 +11,15 @@
 
 function kernel_ichol(data::SVM_train_data,
                       kernel::SVM_kernel,
-                      tol::Float64)
+                      tol::Float64,
+                      maxdim::Int64)
     #=
     Serial method for Incomplete Cholesky Factorization
     for a SVM Kernel Matrix.
     =#
 
-    n, m = size(data.X)
-    H = spzeros(n, m)
+    n, ~ = size(data.X)
+    H = spzeros(n, maxdim)
     v = [K(data.X[i, :], data.X[i, :], kernel) for i in 1:n]
     relative_pivot, pivot = findmax(v)
     k = 1
@@ -28,7 +29,7 @@ function kernel_ichol(data::SVM_train_data,
     relative_pivot /= base_pivot
     print("iter: ", k, "; rel_pivot: ", relative_pivot, "\n")
 
-    while relative_pivot > tol
+    while relative_pivot > tol && k <= maxdim
 
         H[pivot, k] = sqrt(v[pivot])
 
@@ -110,14 +111,15 @@ end
 function distributed_kernel_ichol(X::Array{Float64},
                                   Y::Array{Float64},
                                   kernel::SVM_kernel,
-                                  tol::Float64)
+                                  tol::Float64,
+                                  maxdim::Int64)
 
     #=
     Distributed method for Incomplete Cholesky Factorization
     for a SVM Kernel Matrix.
     =#
 
-    n, m = size(X)
+    n, ~ = size(X)
     X = distribute(X)
     Y = distribute(Y)
     
@@ -126,7 +128,7 @@ function distributed_kernel_ichol(X::Array{Float64},
     N = length(pids)
     I = [[0] for i in 1:N]
     
-    H = spzeros(n, m)
+    H = spzeros(n, maxdim)
     k = 1
 
     # Initial diagonal Kernel matrix
@@ -142,7 +144,7 @@ function distributed_kernel_ichol(X::Array{Float64},
     global_pivot_index = indexes[pivot_proc_index][1][local_pivot_index]
     print("rel_pivot: ", relative_pivot, ' ', "index: ", global_pivot_index, "\n")
 
-    while relative_pivot > tol
+    while relative_pivot > tol && k <= maxdim
 
         # Add pivot to local indexes
         H[global_pivot_index, k] = sqrt(pivot)
