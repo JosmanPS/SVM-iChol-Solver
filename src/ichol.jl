@@ -84,8 +84,8 @@ end
             Q *= K(X[j,:], X_pivot', kernel)
             try
                 Q -= sum([H[j, l] * H_pivot[l] for l in 1:(k-1)])
-                Q /= H_pivot[k]
             end
+            Q /= H_pivot[k]
             T[j] = Q
         end
     end
@@ -98,6 +98,12 @@ end
 function convertsub(x::SubArray{Float64,2,DistributedArrays.DArray{Float64,2,Array{Float64,2}},Tuple{UnitRange{Int64},Colon},0})
     n = length(x)
     return [x[i] for i=1:n]
+end
+
+
+@everywhere function update_diag(v::Array{Float64},
+                                 H::SparseMatrixCSC{Float64,Int64})
+    return v - (H.^2)
 end
 
 
@@ -134,16 +140,16 @@ function distributed_kernel_ichol(X::Array{Float64},
     global_pivot_index = indexes[pivot_proc_index][1][local_pivot_index]
     print("pivot: ", pivot, ' ', "index: ", global_pivot_index, "\n")
 
-    # Add pivot to local indexes
-    I[pivot_proc_index] = vcat(I[pivot_proc_index], [local_pivot_index])
-    X_pivot = convertsub(X[global_pivot_index, :])
-    Y_pivot = Y[global_pivot_index]
-    H_pivot = H[global_pivot_index, 1:(k-1)]
-
     while pivot > tol
+
+        # Add pivot to local indexes
+        H[global_pivot_index, k] = sqrt(pivot)
+        I[pivot_proc_index] = vcat(I[pivot_proc_index], [local_pivot_index])
+        X_pivot = convertsub(X[global_pivot_index, :])
+        Y_pivot = Y[global_pivot_index]
+        H_pivot = H[global_pivot_index, :]
     
         # Set column pivot value
-        H[global_pivot_index, k] = sqrt(pivot)
 
         T = [
             (@spawnat pids[i] ichol_column(
@@ -160,12 +166,11 @@ function distributed_kernel_ichol(X::Array{Float64},
             ) for i in 1:N
         ]
         T = reduce(vcat, pmap(fetch, T))
-        print(T, "\n")
         H[:, k] += T
 
         # Update values
         # ...
-        v = [(@spawnat pids[i] +(localpart(v), H[indexes[i][1], k])) for i in 1:N]
+        v = [(@spawnat pids[i] update_diag(localpart(v), H[indexes[i][1], k])) for i in 1:N]
         v = reduce(vcat, pmap(fetch, v))
         v = distribute(v)
         k += 1
@@ -175,12 +180,6 @@ function distributed_kernel_ichol(X::Array{Float64},
         (pivot, local_pivot_index), pivot_proc_index = findmax(pivot)
         global_pivot_index = indexes[pivot_proc_index][1][local_pivot_index]
         print("pivot: ", pivot, ' ', "index: ", global_pivot_index, "\n")
-
-        # Add pivot to local indexes
-        I[pivot_proc_index] = vcat(I[pivot_proc_index], [local_pivot_index])
-        X_pivot = convertsub(X[global_pivot_index, :])
-        Y_pivot = Y[global_pivot_index]
-        H_pivot = H[global_pivot_index, 1:(k-1)]
 
     end
 
