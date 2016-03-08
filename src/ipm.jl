@@ -123,8 +123,18 @@ function svm_ipm_dual(X::Array{Float64,2},
       D_s = (-s ./ alpha) .* (D_alpha - alpha)
 
       # Compute step
+      # -------------
+      B_alpha = step(alpha, D_alpha, 1.0)
+      B_s = step(s, D_s, 1.0)
+      B_xi = step(xi, D_xi, 1.0)
 
       # Compute sigma
+      # --------------
+      mu_aff = (s + B_s * D_s)' * (alpha + B_alpha * D_alpha)
+      mu_aff += (C_alpha - B_alpha * D_alpha)' * (xi + B_xi * D_xi)
+      mu_aff /= 2 * n
+      mu_aff = mu_aff[1]
+      sigma = (mu_aff / mu)^3
 
       # Solve corrector equations
 
