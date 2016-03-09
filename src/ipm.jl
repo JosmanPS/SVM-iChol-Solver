@@ -117,10 +117,10 @@ function svm_ipm_dual(X::Array{Float64,2},
       QDy = smw_solve(D, V, y)
       QDr = smw_solve(D, V, r)
 
-      D_b = QDr / (y' * QDy)
+      D_b = (y' * QDr) / (y' * QDy)
       D_alpha = -alpha + QDy * D_b - QDr
       D_xi = (xi ./ C_alpha) .* (D_alpha - C_alpha)
-      D_s = (-s ./ alpha) .* (D_alpha - alpha)
+      D_s = (-s ./ alpha) .* (D_alpha + alpha)
 
       # Compute step
       # -------------
