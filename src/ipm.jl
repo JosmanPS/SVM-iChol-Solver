@@ -109,6 +109,12 @@ function svm_ipm_dual(X::Array{Float64,2},
     V = kernel_ichol(data, kernel, tol_ichol, maxdim)
     data = 0
 
+    @printf "  iter      mu      sigma      beta \n"
+    @printf "------------------------------------- \n"
+    @printf " %3i     %1.4e     %1.4e     %1.4e  \n" iter mu 0.0 0.0
+
+
+
     while mu > tol_ipm && iter < maxiter
 
         # Solve predictor equations
@@ -175,6 +181,9 @@ function svm_ipm_dual(X::Array{Float64,2},
         C_alpha = C - alpha
         mu = (alpha' * s + C_alpha * xi)[1]
         mu /= 2*n
+        iter += 1
+
+        @printf " %3i     %1.4e     %1.4e     %1.4e  \n" iter mu sigma B
 
     end    
 
