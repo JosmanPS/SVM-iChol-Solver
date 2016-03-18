@@ -47,9 +47,59 @@ function smw_solve(d::Array{Float64,2},
 end
 
 
-function step(x::Array{Float64,2},
-              dx::Array{Float64,2},
-              tau::Float64)
+function smw_solve(d::Array{Float64,2},
+                   V::SparseMatrixCSC{Float64,Int64},
+                   w::Array{Float64,2})
+    #=
+
+    This method solves the problem:
+      (D + VV')u = w
+    where D is a diagonal matrix (diag(d));
+    using the Sherman-Morrison-Woodburry formula.
+
+    =#
+    n, m = size(V)
+    z = w ./ d
+    DV = spdiag(1./d) * V
+    A = speye(m) + V' * DV
+    b = V' * z
+    # t = cholfact(A) \ b  # TODO: Corregir errores numéricos
+    t = A \ b
+    u = z - DV * t
+    return u
+
+end
+
+
+function ipmstep(x::Array{Float64,2},
+                 dx::Array{Float64,2},
+                 tau::Float64)
+    #=
+
+    This method compute the step Beta,
+    such that:
+        x + Beta * dx > 0
+
+    =#
+    neg = dx .< 0
+
+    if sum(neg) == 0
+        beta = tau;
+    else
+        x = x[neg]
+        dx = dx[neg]
+        dx = x ./ dx
+        beta = tau * findmin(-dx)[1]
+        beta = min(1.0, beta)
+    end
+
+    return beta
+end
+
+
+function ipmstep(x::SparseMatrixCSC{Float64,Int64},
+                 dx::Array{Float64,2},
+                 tau::Float64)
     #=
 
     This method compute the step Beta,
@@ -93,13 +143,17 @@ function svm_ipm_dual(X::Array{Float64,2},
     n, m = size(X)
     iter = 1
 
-    alpha = spzeros(n, 1)
+    alpha = ones(n, 1)
+    if C == 1.0
+        alpha /= 2
+    end
     b = ones(1, 1)
     s = ones(n, 1)
     xi = ones(n, 1)
     C_alpha = C - alpha
 
-    mu = C / 2
+    mu = (alpha' * s + C_alpha' * xi)[1]
+    mu /= 2*n
     tol_ipm *= 1 + mu
 
     # Kernel Matrix approximation
@@ -120,7 +174,7 @@ function svm_ipm_dual(X::Array{Float64,2},
         # Solve predictor equations
         # --------------------------
         D = s ./ alpha + xi ./ C_alpha
-        r = -1 - b * y - s + xi - C * xi ./ C_alpha
+        r = -1 - b[1] * y - s + xi - C * xi ./ C_alpha
         QDy = smw_solve(D, V, y)
         QDr = smw_solve(D, V, r)
 
@@ -131,9 +185,9 @@ function svm_ipm_dual(X::Array{Float64,2},
 
         # Compute step
         # -------------
-        B_alpha = step(alpha, D_alpha, 1.0)
-        B_s = step(s, D_s, 1.0)
-        B_xi = step(xi, D_xi, 1.0)
+        B_alpha = ipmstep(alpha, D_alpha, 1.0)
+        B_s = ipmstep(s, D_s, 1.0)
+        B_xi = ipmstep(xi, D_xi, 1.0)
 
         # Compute sigma
         # --------------
@@ -145,31 +199,29 @@ function svm_ipm_dual(X::Array{Float64,2},
 
         # Solve corrector equations
         # -------------------------
-        D = s ./ (alpha + D_alpha) + xi ./ (C_alpha - D_alpha)
         sig_mu = sigma * mu
-        alpha_D_alpha = alpha + D_alpha
-        C_alpha_D_alpha = C_alpha - D_alpha
+        A_sig_mu = sig_mu ./ alpha
+        A_da_ds = D_alpha .* D_s ./ alpha
+        CA_sig_mu = sig_mu ./ C_alpha
+        CA_da_dxi = D_alpha .* D_xi ./ C_alpha
 
-        A_sig_mu = sig_mu ./ (alpha_D_alpha)
-        CA_sig_mu = sig_mu ./ (C_alpha_D_alpha)
-        w = A_sig_mu - CA_sig_mu
-        r = -1 - b * y - s + xi - C * xi ./ (C_alpha_D_alpha)
+        w1 = A_sig_mu - A_da_ds
+        w2 = CA_sig_mu + CA_da_dxi
+        w = w1 - w2
         u = r - w
         QDy = smw_solve(D, V, y)
         QDu = smw_solve(D, V, u)
 
         D_b = (y' * QDu) / (y' * QDy)
-        D_alpha_2 = -alpha + QDy * D_b - QDu
-        D_xi = (xi ./ (C_alpha_D_alpha)) .* (D_alpha_2 - C_alpha) + CA_sig_mu
-        D_s = (-s ./ (alpha_D_alpha)) .* (D_alpha_2 + alpha) + A_sig_mu
-        D_alpha = D_alpha_2
-        D_alpha_2 = 0
+        D_alpha = -alpha + QDy * D_b - QDu
+        D_xi = (xi ./ (C_alpha)) .* (D_alpha - C_alpha) + w2
+        D_s = (-s ./ (alpha)) .* (D_alpha + alpha) + w1
 
         # Compute step
         # -------------
-        B_alpha = step(alpha, D_alpha, 0.995)
-        B_s = step(s, D_s, 0.995)
-        B_xi = step(xi, D_xi, 0.995)
+        B_alpha = ipmstep(alpha, D_alpha, 0.995)
+        B_s = ipmstep(s, D_s, 0.995)
+        B_xi = ipmstep(xi, D_xi, 0.995)
         B, ~ = findmin([B_alpha, B_s, B_xi])
 
         # Update
@@ -179,14 +231,17 @@ function svm_ipm_dual(X::Array{Float64,2},
         s += B_s * D_s
         xi += B_xi * D_xi
         C_alpha = C - alpha
-        mu = (alpha' * s + C_alpha * xi)[1]
+        mu = (alpha' * s + C_alpha' * xi)[1]
         mu /= 2*n
         iter += 1
 
         @printf " %3i     %1.4e     %1.4e     %1.4e  \n" iter mu sigma B
+        Valpha = V' * alpha
+        OBJ = (Valpha' * Valpha)[1] - sum(alpha)
+        @printf " OBJ: %1.8e \n" OBJ
 
     end    
 
-    return (alpha, b, s, xi)
+    return (alpha, b, s, xi, V' * alpha)
 
 end

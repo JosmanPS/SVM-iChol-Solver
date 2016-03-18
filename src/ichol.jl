@@ -8,7 +8,6 @@
 
 =#
 
-
 function kernel_ichol(data::SVM_train_data,
                       kernel::SVM_kernel,
                       tol::Float64,

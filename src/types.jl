@@ -29,7 +29,7 @@ end
 end
 
 
-@everywhere type SVM
+@everywhere type SVM_predictor
     kernel::SVM_kernel
     C::Float64
     bias::Float64
