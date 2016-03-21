@@ -20,7 +20,6 @@ predictor = svm_ipm_dual(
     1e-8,
     50
 );
-predictor = compute_bias(predictor);
 
 grid = [0.0 0.0];
 for i=-2:0.1:2

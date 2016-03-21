@@ -262,6 +262,7 @@ function svm_ipm_dual(X::Array{Float64,2},
         support_vectors,
         support_vector_labels
     )
+    predictor = compute_bias(predictor)
 
     return predictor
 
