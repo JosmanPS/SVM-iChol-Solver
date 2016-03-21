@@ -33,27 +33,8 @@ end
     kernel::SVM_kernel
     C::Float64
     bias::Float64
-    weights::Array{Float64}
-    support_vectors::Array{Float64}
-    support_vectors_labels::Array{Float64}
+    weights::Array{Float64,1}
+    support_vectors::Array{Float64,2}
+    support_vector_labels::Array{Float64,2}
 end
 
-
-@everywhere function K(x::Array{Float64},
-                       y::Array{Float64},
-                       kernel::SVM_kernel)
-    #=
-    Compute the kernel function between 'x' and 'y'.
-    =#
-
-    if kernel.kernel == "gaussian"
-        return exp(-kernel.arg1 * norm(x - y))
-
-    elseif kernel.kernel == "linear"
-        return (x * y')[1]
-
-    else
-        return 0.0
-    end
-
-end
