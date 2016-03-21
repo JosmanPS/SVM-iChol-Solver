@@ -10,23 +10,33 @@ labels = 2 * (sum(samples, 2) .> 0) - 1.0;
 
 #
 kernel = SVM_kernel("linear", 1.0, 1.0);
-alpha = svm_ipm_dual(
+predictor = svm_ipm_dual(
     samples,
     labels,
-    1000.0,
+    100.0,
     kernel,
     1e-8,
     2,
     1e-8,
     50
 );
+predictor = compute_bias(predictor);
 
-w = samples' * alpha[1];
-b = alpha[2];
-base = [i for i=-2:0.1:2];
-basey = b[1] + w[1] * base;
-basey /= w[2];
+grid = [0.0 0.0];
+for i=-2:0.1:2
+    for j=-2:0.1:2
+        grid = vcat(grid, [i j]);
+    end
+end
+grid_labels = predict_matrix(predictor, grid);
 
-plot(layer(x=samples[:,1], y=samples[:,2], color=labels, Geom.point),
-     layer(x=base, y=basey, Geom.line)
+
+function string_array(x::Array{Float64})
+    n = length(x)
+    x = [string(x[i]) for i=1:n]
+    return x
+end
+
+plot(layer(x=grid[:,1], y=grid[:,2], color=string_array(grid_labels[:,1]), Geom.point, Theme(default_point_size=Measures.Measure(0.4mm)),order=1),
+     layer(x=samples[:,1], y=samples[:,2], color=string_array(labels[:,1]), Geom.point, order=2),
 )
