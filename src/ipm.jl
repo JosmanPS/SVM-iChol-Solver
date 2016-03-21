@@ -138,6 +138,8 @@ function svm_ipm_dual(X::Array{Float64,2},
 
     =#
 
+    SUPPORT_VECTOR_TOL = 1e-5
+
     # Initial values
     # ---------------
     n, m = size(X)
@@ -159,7 +161,6 @@ function svm_ipm_dual(X::Array{Float64,2},
     # Kernel Matrix approximation
     # ---------------------------
     data = SVM_train_data(X, y)
-    X = 0
     V = kernel_ichol(data, kernel, tol_ichol, maxdim)
     data = 0
 
@@ -240,8 +241,28 @@ function svm_ipm_dual(X::Array{Float64,2},
         OBJ = (Valpha' * Valpha)[1] - sum(alpha)
         @printf " OBJ: %1.8e \n" OBJ
 
-    end    
+    end
 
-    return (alpha, b, s, xi, V' * alpha)
+    # Create the predictor
+    # ---------------------
+    sv_index = alpha .> SUPPORT_VECTOR_TOL
+    weights = alpha[sv_index]
+    alpha = 0
+    support_vectors = X[sv_index, :]
+    X = 0
+    support_vector_labels = y[sv_index, :]
+    y = 0
+    bias = 0.0
+
+    predictor = SVM_predictor(
+        kernel,
+        C,
+        bias,
+        weights,
+        support_vectors,
+        support_vector_labels
+    )
+
+    return predictor
 
 end
