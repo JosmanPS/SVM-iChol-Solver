@@ -160,9 +160,7 @@ function svm_ipm_dual(X::Array{Float64,2},
 
     # Kernel Matrix approximation
     # ---------------------------
-    data = SVM_train_data(X, y)
-    V = kernel_ichol(data, kernel, tol_ichol, maxdim)
-    data = 0
+    V = kernel_ichol(X, y, kernel, tol_ichol, maxdim)
 
     @printf "  iter      mu      sigma      beta \n"
     @printf "------------------------------------- \n"

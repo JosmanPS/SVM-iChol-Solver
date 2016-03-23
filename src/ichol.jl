@@ -8,7 +8,8 @@
 
 =#
 
-function kernel_ichol(data::SVM_train_data,
+function kernel_ichol(X::Array{Float64,2},
+                      Y::Array{Float64,2},
                       kernel::SVM_kernel,
                       tol::Float64,
                       maxdim::Int64)
@@ -17,9 +18,9 @@ function kernel_ichol(data::SVM_train_data,
     for a SVM Kernel Matrix.
     =#
 
-    n, ~ = size(data.X)
+    n, ~ = size(X)
     H = spzeros(n, maxdim)
-    v = [K(data.X[i, :], data.X[i, :], kernel) for i in 1:n]
+    v = [K(X[i, :], X[i, :], kernel) for i in 1:n]
     relative_pivot, pivot = findmax(v)
     k = 1
     I = [pivot]
@@ -33,8 +34,8 @@ function kernel_ichol(data::SVM_train_data,
         H[pivot, k] = sqrt(v[pivot])
 
         for j in J
-            Q = data.Y[j] * data.Y[pivot]
-            Q *= K(data.X[j,:], data.X[pivot,:], kernel)
+            Q = Y[j] * Y[pivot]
+            Q *= K(X[j,:], X[pivot,:], kernel)
             try # k=1
                 Q -= sum([H[j, l] * H[pivot, l] for l in 1:(k-1)])
             end

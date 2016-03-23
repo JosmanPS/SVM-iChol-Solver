@@ -10,18 +10,6 @@
 =#
 
 
-@everywhere type SVM_train_data
-    X::Array{Float64}
-    Y::Array{Float64}
-end
-
-
-@everywhere type SVM_test_data
-    X::Array{Float64}
-    Y::Array{Float64}
-end
-
-
 @everywhere type SVM_kernel
     kernel::AbstractString
     arg1::Float64
