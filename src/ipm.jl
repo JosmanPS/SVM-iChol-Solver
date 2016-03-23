@@ -12,15 +12,28 @@
 
 function spdiag(d::Array{Float64})
     #=
-      Creates a sparse diagonal matrix
-      with values in d.
+
+    Description:
+    ------------
+    Creates a sparse diagonal matrix with values in d.
+
+    Input:
+    ------
+        - d : diagonal matrix values.
+
+    Output:
+    -------
+        - D : SparseMatrixCSC{Float64,Int64} | sparse diagonal matrix.
+
     =#
+
     n = length(d)
     D = spzeros(n, n)
     for i in 1:n
       D[i, i] = d[i]
     end
     return D
+
 end
 
 
@@ -29,12 +42,25 @@ function smw_solve(d::Array{Float64,2},
                    w::Array{Float64,2})
     #=
 
+    Description:
+    ------------
     This method solves the problem:
-      (D + VV')u = w
+        (D + VV')u = w
     where D is a diagonal matrix (diag(d));
     using the Sherman-Morrison-Woodburry formula.
 
+    Input:
+    ------
+        - d : diagonal matrix values.
+        - V : matrix factor.
+        - w : answer vector.
+
+    Output:
+    -------
+        - u : Array{Float64,2} | problem solution values.
+
     =#
+
     n, m = size(V)
     z = w ./ d
     DV = spdiag(1./d) * V
@@ -52,12 +78,25 @@ function smw_solve(d::Array{Float64,2},
                    w::Array{Float64,2})
     #=
 
+    Description:
+    ------------
     This method solves the problem:
-      (D + VV')u = w
+        (D + VV')u = w
     where D is a diagonal matrix (diag(d));
     using the Sherman-Morrison-Woodburry formula.
 
+    Input:
+    ------
+        - d : diagonal matrix values.
+        - V : matrix factor.
+        - w : answer vector.
+
+    Output:
+    -------
+        - u : Array{Float64,2} | problem solution values.
+
     =#
+
     n, m = size(V)
     z = w ./ d
     DV = spdiag(1./d) * V
@@ -76,11 +115,23 @@ function ipmstep(x::Array{Float64,2},
                  tau::Float64)
     #=
 
-    This method compute the step Beta,
-    such that:
+    Description:
+    ------------
+    This method compute the step Beta, such that:
         x + Beta * dx > 0
 
+    Input:
+    ------
+        - x : positive vector values.
+        - dx : direction.
+        - tau : precentage of the step to take.
+
+    Output:
+    -------
+        - beta : Float64 | positive step length.
+
     =#
+
     neg = dx .< 0
 
     if sum(neg) == 0
@@ -94,6 +145,7 @@ function ipmstep(x::Array{Float64,2},
     end
 
     return beta
+
 end
 
 
@@ -102,11 +154,23 @@ function ipmstep(x::SparseMatrixCSC{Float64,Int64},
                  tau::Float64)
     #=
 
-    This method compute the step Beta,
-    such that:
+    Description:
+    ------------
+    This method compute the step Beta, such that:
         x + Beta * dx > 0
 
+    Input:
+    ------
+        - x : positive vector values.
+        - dx : direction.
+        - tau : precentage of the step to take.
+
+    Output:
+    -------
+        - beta : Float64 | positive step length.
+
     =#
+
     neg = dx .< 0
 
     if sum(neg) == 0
@@ -120,6 +184,7 @@ function ipmstep(x::SparseMatrixCSC{Float64,Int64},
     end
 
     return beta
+
 end
 
 
@@ -133,8 +198,25 @@ function svm_ipm_dual(X::Array{Float64,2},
                       maxiter::Int64)
     #=
 
+    Description:
+    ------------
     Mehrotra IPM method for solving SVM with
     iChol Kernel approximations.
+
+    Input:
+    ------
+        - X : train data characteristics.
+        - Y : train data labels.
+        - C : penalization weight.
+        - kernel : kernel type.
+        - tol_ichol : ichol approximation tolerance.
+        - maxdim : max dimension of the approximation matrix.
+        - tol_ipm : dual gap tolerance.
+        - maxiter : maximum number of iterations.
+
+    Output:
+    -------
+        - predictor : SVM_predictor | trained SVM predictor.
 
     =#
 

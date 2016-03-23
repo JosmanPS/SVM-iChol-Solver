@@ -14,8 +14,24 @@ function kernel_ichol(X::Array{Float64,2},
                       tol::Float64,
                       maxdim::Int64)
     #=
+
+    Description:
+    ------------
     Serial method for Incomplete Cholesky Factorization
     for a SVM Kernel Matrix.
+
+    Input:
+    ------
+        - X : train data characteristics.
+        - Y : train data labels.
+        - kernel : kernel type.
+        - tol : ichol approximation tolerance.
+        - maxdim : max dimension of the approximation matrix.
+
+    Output:
+    -------
+        - H : SparseMatrixCSC{Float64,Int64} | Kernel matrix factor.
+
     =#
 
     n, ~ = size(X)
@@ -60,9 +76,27 @@ end
 
 
 @everywhere function kernel_diag(X::Array{Float64, 2}, kernel::SVM_kernel)
+    #=
+
+    Description:
+    ------------
+    Compute the diagonal of a Kernel matrix.
+
+    Input:
+    ------
+        - X : train data characteristics.
+        - kernel : kernel type.
+
+    Output:
+    -------
+        - v : Array{Float64,1} | Kernel diagonal values.
+
+    =#
+
     n, ~ = size(X)
     v = [K(X[i, :], X[i, :], kernel) for i=1:n]
     return v
+
 end
 
 
@@ -75,6 +109,29 @@ end
                                   I::Array{Int64,1},
                                   kernel::SVM_kernel,
                                   k::Int64)
+    #=
+
+    Description:
+    ------------
+    Compute a column from an Incomplete Cholesky factor.
+
+    Input:
+    ------
+        - X : train data characteristics.
+        - X_pivot : column pivot data instance.
+        - Y : train data labels.
+        - Y_pivot : column pivot label.
+        - H : incomplete Cholesky factor previous values.
+        - H_pivot : incomplete Cholesky factor pivot value.
+        - I : indexes to compute.
+        - kernel : kernel type.
+        - k : iteration value, column index.
+
+    Output:
+    -------
+        - T : SparseMatrixCSC{Float64,Int64} | Kernel matrix factor column.
+
+    =#
 
     n, ~ = size(X)
     T = spzeros(n,1)
@@ -97,6 +154,22 @@ end
 
 
 function convertsub(x::SubArray{Float64,2,DistributedArrays.DArray{Float64,2,Array{Float64,2}},Tuple{UnitRange{Int64},Colon},0})
+    #=
+
+    Description:
+    ------------
+    Convert a SubArray{Float64} subfactor to an Array{Float64}.
+
+    Input:
+    ------
+        - x : subarray to convert.
+
+    Output:
+    -------
+        - Array{Float64,1} | Array converted.
+
+    =#
+
     n = length(x)
     return [x[i] for i=1:n]
 end
@@ -104,6 +177,23 @@ end
 
 @everywhere function update_diag(v::Array{Float64},
                                  H::SparseMatrixCSC{Float64,Int64})
+    #=
+
+    Description:
+    ------------
+    Auxiliar function to update the diagonal Kernel matrix residuals.
+
+    Input:
+    ------
+        - v : Kernel matrix residuals.
+        - H : Kernel matrix factor values.
+
+    Output:
+    -------
+        - Array{Float64} | updated Kernel matrix residuals.
+
+    =#
+
     return v - (H.^2)
 end
 
@@ -113,10 +203,25 @@ function distributed_kernel_ichol(X::Array{Float64},
                                   kernel::SVM_kernel,
                                   tol::Float64,
                                   maxdim::Int64)
-
     #=
+
+    Description:
+    ------------
     Distributed method for Incomplete Cholesky Factorization
     for a SVM Kernel Matrix.
+
+    Input:
+    ------
+        - X : train data characteristics.
+        - Y : train data labels.
+        - kernel : kernel type.
+        - tol : ichol approximation tolerance.
+        - maxdim : max dimension of the approximation matrix.
+
+    Output:
+    -------
+        - H : SparseMatrixCSC{Float64,Int64} | Kernel matrix factor.
+
     =#
 
     n, ~ = size(X)
