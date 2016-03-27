@@ -38,3 +38,5 @@ end
 plot(layer(x=grid[:,1], y=grid[:,2], color=string_array(grid_labels[:,1]), Geom.point, Theme(default_point_size=Measures.Measure(0.4mm)),order=1),
      layer(x=samples[:,1], y=samples[:,2], color=string_array(labels[:,1]), Geom.point, order=2),
 )
+
+# distributed_kernel_ichol(samples, labels, kernel, 0.3, 14)

@@ -244,8 +244,8 @@ function svm_ipm_dual(X::Array{Float64,2},
     # ---------------------------
     V = kernel_ichol(X, y, kernel, tol_ichol, maxdim)
 
-    @printf "  iter      mu      sigma      beta \n"
-    @printf "------------------------------------- \n"
+    @printf "  iter      mu           sigma           beta \n"
+    @printf "---------------------------------------------------- \n"
     @printf " %3i     %1.4e     %1.4e     %1.4e  \n" iter mu 0.0 0.0
 
 
@@ -317,9 +317,6 @@ function svm_ipm_dual(X::Array{Float64,2},
         iter += 1
 
         @printf " %3i     %1.4e     %1.4e     %1.4e  \n" iter mu sigma B
-        Valpha = V' * alpha
-        OBJ = (Valpha' * Valpha)[1] - sum(alpha)
-        @printf " OBJ: %1.8e \n" OBJ
 
     end
 

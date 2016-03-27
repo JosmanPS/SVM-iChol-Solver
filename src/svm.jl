@@ -7,10 +7,10 @@
 
 =#
 
-@everywhere using DistributedArrays
-using Gadfly
+# @everywhere using DistributedArrays
+# using Gadfly
 
-include("types.jl")
+# include("types.jl")
 
 
 @everywhere function K(x::Array{Float64},
@@ -60,7 +60,7 @@ function compute_bias(predictor::SVM_predictor)
 
     Output:
     -------
-        - predictor : SVM_predictor | trained SVM predictor 
+        - predictor : SVM_predictor | trained SVM predictor
                       with bias constant.
 
     =#

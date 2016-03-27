@@ -34,21 +34,35 @@ function kernel_ichol(X::Array{Float64,2},
 
     =#
 
+    tic()
     n, ~ = size(X)
     H = spzeros(n, maxdim)
     v = [K(X[i, :], X[i, :], kernel) for i in 1:n]
-    relative_pivot, pivot = findmax(v)
+    ttt = toq()
+    print("Diagonal kernel: ", ttt, "\n")
+
+    tic()
+    trace = sum(v)
+    ttt = toq()
+    print("trace: ", ttt, "\n")
+
+    tic()
+    ~, pivot = findmax(v)
+    ttt = toq()
+    print("Find pivot: ", ttt, "\n")
+
     k = 1
     I = [pivot]
     J = setdiff(collect(1:n), I)
-    base_pivot = relative_pivot
-    relative_pivot /= base_pivot
-    print("iter: ", k, "; rel_pivot: ", relative_pivot, "\n")
+    base_trace = trace
+    tol *= 1 + base_trace
+    print("iter: ", k, "; trace: ", trace, "\n")
 
-    while relative_pivot > tol && k <= maxdim
+    while trace > tol && k <= maxdim
 
         H[pivot, k] = sqrt(v[pivot])
 
+        tic()
         for j in J
             Q = Y[j] * Y[pivot]
             Q *= K(X[j,:], X[pivot,:], kernel)
@@ -58,24 +72,43 @@ function kernel_ichol(X::Array{Float64,2},
             Q /= H[pivot, k]
             H[j, k] = Q
         end
+        ttt = toq()
+        print(k, " | Compute column: ", ttt, "\n")
 
+        tic()
         v -= H[:, k].^2
-        relative_pivot, pivot = findmax(v)
-        relative_pivot /= base_pivot
+        ttt = toq()
+        print(k, " | Update diagonal: ", ttt, "\n")
+
+        tic()
+        ~, pivot = findmax(v)
+        ttt = toq()
+        print(k, " | Find pivot: ", ttt, "\n")
+
+        tic()
+        trace = sum(v)
+        ttt = toq()
+        print(k, " | Trace: ", ttt, "\n")
+
         J = setdiff(J, [pivot])
         I = union(I, [pivot])
         k += 1
-        print("iter: ", k, "; rel_pivot: ", relative_pivot, "\n")
+        print("iter: ", k, "; trace: ", trace, "\n")
 
     end
 
+    tic()
     H = H[:, 1:(k-1)]
+    ttt = toq()
+    print("Get final matrix: ", ttt, "\n")
     return H
 
 end
 
 
-@everywhere function kernel_diag(X::Array{Float64, 2}, kernel::SVM_kernel)
+@everywhere function kernel_diag(X::Array{Float64,2},
+                                 kernel::SVM_kernel,
+                                 v::Array{Float64,2})
     #=
 
     Description:
@@ -86,16 +119,16 @@ end
     ------
         - X : train data characteristics.
         - kernel : kernel type.
+        - v : kernel diagonal values.
 
     Output:
     -------
-        - v : Array{Float64,1} | Kernel diagonal values.
+        - nothing
 
     =#
 
     n, ~ = size(X)
-    v = [K(X[i, :], X[i, :], kernel) for i=1:n]
-    return v
+    v[1:n] = [K(X[i, :], X[i, :], kernel) for i=1:n]
 
 end
 
@@ -198,6 +231,30 @@ end
 end
 
 
+function parallel_kernel_diag(X::DistributedArrays.DArray,
+                              kernel::SVM_kernel,
+                              v::DistributedArrays.DArray)
+    #=
+
+    Description:
+    ------------
+    Compute kernel matrix diagonal for DistributedArrays.
+
+    Input:
+    ------
+        - X : train data characteristics.
+        - v : kernel diagonal values
+
+    Output:
+    -------
+        - nothing
+
+    =#
+
+    refs = [(@spawnat w kernel_diag(localpart(X), kernel, localpart(v))) for w in procs(X)]
+end
+
+
 function distributed_kernel_ichol(X::Array{Float64},
                                   Y::Array{Float64},
                                   kernel::SVM_kernel,
@@ -224,42 +281,61 @@ function distributed_kernel_ichol(X::Array{Float64},
 
     =#
 
+    tic()
     n, ~ = size(X)
     X = distribute(X)
     Y = distribute(Y)
-    
+    ttt = toq()
+    print("Distribute data: ", ttt, "\n")
+
+    tic()
     indexes = X.indexes
+    print(indexes, "\n\n")
     pids = X.pids
     N = length(pids)
     I = [[0] for i in 1:N]
-    
+
     H = spzeros(n, maxdim)
     k = 1
 
     # Initial diagonal Kernel matrix
     v = [(@spawnat pids[i] kernel_diag(localpart(X), kernel)) for i in 1:N]
     v = reduce(vcat, pmap(fetch, v))
+    ttt = toq()
+    print("Diagonal kernel: ", ttt, "\n")
+
+    tic()
+    trace = sum(v)
+    ttt = toq()
+    print("Trace: ", ttt, "\n")
+
+    tic()
     v = distribute(v)
 
     # Find pivot
     pivot = pmap(fetch, [(@spawnat pids[i] findmax(localpart(v))) for i in 1:N])
     (pivot, local_pivot_index), pivot_proc_index = findmax(pivot)
-    base_pivot = pivot
-    relative_pivot = pivot / base_pivot
-    global_pivot_index = indexes[pivot_proc_index][1][local_pivot_index]
-    print("rel_pivot: ", relative_pivot, ' ', "index: ", global_pivot_index, "\n")
+    ttt = toq()
+    print("Find pivot: ", ttt, "\n")
 
-    while relative_pivot > tol && k <= maxdim
+    tol *= 1 + trace
+    global_pivot_index = indexes[pivot_proc_index][1][local_pivot_index]
+    print("trace: ", trace, ' ', "index: ", global_pivot_index, "\n")
+
+    while trace > tol && k <= maxdim
 
         # Add pivot to local indexes
+        tic()
         H[global_pivot_index, k] = sqrt(pivot)
         I[pivot_proc_index] = vcat(I[pivot_proc_index], [local_pivot_index])
         X_pivot = convertsub(X[global_pivot_index, :])
         Y_pivot = Y[global_pivot_index]
         H_pivot = H[global_pivot_index, :]
-    
-        # Set column pivot value
+        ttt = toq();
+        print(k, " | Pivot values: ", ttt, "\n")
 
+        # Set column pivot value
+        tic()
         T = [
             (@spawnat pids[i] ichol_column(
                 localpart(X),
@@ -270,29 +346,45 @@ function distributed_kernel_ichol(X::Array{Float64},
                 H_pivot,
                 I[i],
                 kernel,
-                k    
+                k
                 )
             ) for i in 1:N
         ]
         T = reduce(vcat, pmap(fetch, T))
         H[:, k] += T
+        ttt = toq()
+        print(k, " | Compute column: ", ttt, "\n")
 
         # Update values
         # ...
+        tic()
         v = [(@spawnat pids[i] update_diag(localpart(v), H[indexes[i][1], k])) for i in 1:N]
         v = reduce(vcat, pmap(fetch, v))
+        ttt = toq()
+        print(k, " | Update diagonal: ", ttt, "\n")
+
+        tic()
+        trace = sum(v)
+        ttt = toq()
+        print(k, " | Trace: ", ttt, "\n")
+
+        tic()
         v = distribute(v)
         k += 1
 
         # Find pivot
         pivot = pmap(fetch, [(@spawnat pids[i] findmax(localpart(v))) for i in 1:N])
         (pivot, local_pivot_index), pivot_proc_index = findmax(pivot)
-        relative_pivot = pivot / base_pivot
         global_pivot_index = indexes[pivot_proc_index][1][local_pivot_index]
-        print("rel_pivot: ", relative_pivot, ' ', "index: ", global_pivot_index, "\n")
+        ttt = toq()
+        print(k, " | Find pivot: ", ttt, "\n")
+        print("trace: ", trace, ' ', "index: ", global_pivot_index, "\n")
 
     end
 
+    tic()
     return H[:, 1:(k-1)]
+    ttt = toq()
+    print("Get final matrix: ", ttt, "\n")
 
 end
