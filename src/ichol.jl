@@ -34,35 +34,27 @@ function kernel_ichol(X::Array{Float64,2},
 
     =#
 
-    tic()
     n, ~ = size(X)
     H = spzeros(n, maxdim)
     v = [K(X[i, :], X[i, :], kernel) for i in 1:n]
-    ttt = toq()
-    print("Diagonal kernel: ", ttt, "\n")
 
-    tic()
     trace = sum(v)
-    ttt = toq()
-    print("trace: ", ttt, "\n")
-
-    tic()
     ~, pivot = findmax(v)
-    ttt = toq()
-    print("Find pivot: ", ttt, "\n")
 
     k = 1
     I = [pivot]
     J = setdiff(collect(1:n), I)
     base_trace = trace
     tol *= 1 + base_trace
-    print("iter: ", k, "; trace: ", trace, "\n")
+
+    @printf "  iter        trace  \n"
+    @printf " ---------------------- \n"
+    @printf " %3i      %1.6e  \n" (k-1) trace
 
     while trace > tol && k <= maxdim
 
         H[pivot, k] = sqrt(v[pivot])
 
-        tic()
         for j in J
             Q = Y[j] * Y[pivot]
             Q *= K(X[j,:], X[pivot,:], kernel)
@@ -72,35 +64,21 @@ function kernel_ichol(X::Array{Float64,2},
             Q /= H[pivot, k]
             H[j, k] = Q
         end
-        ttt = toq()
-        print(k, " | Compute column: ", ttt, "\n")
 
-        tic()
         v -= H[:, k].^2
-        ttt = toq()
-        print(k, " | Update diagonal: ", ttt, "\n")
 
-        tic()
         ~, pivot = findmax(v)
-        ttt = toq()
-        print(k, " | Find pivot: ", ttt, "\n")
-
-        tic()
         trace = sum(v)
-        ttt = toq()
-        print(k, " | Trace: ", ttt, "\n")
 
         J = setdiff(J, [pivot])
         I = union(I, [pivot])
         k += 1
-        print("iter: ", k, "; trace: ", trace, "\n")
+
+        @printf " %3i      %1.6e  \n" (k-1) trace
 
     end
 
-    tic()
     H = H[:, 1:(k-1)]
-    ttt = toq()
-    print("Get final matrix: ", ttt, "\n")
     return H
 
 end
