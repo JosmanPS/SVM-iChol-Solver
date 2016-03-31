@@ -200,7 +200,10 @@ function distributed_kernel_ichol(X::Array{Float64,2},
     k = 1
 
     # Initial diagonal Kernel matrix
-    refs = [@spawnat pids[i] kernel_diag(localpart(X), kernel, localpart(v)) for i in 1:N]
+    refs = [
+        @spawnat pids[i] kernel_diag(localpart(X), kernel, localpart(v))
+        for i in 1:N
+    ]
     calls = pmap(fetch, refs)
     trace_list = [calls[i][1] for i = 1:N]
     pivot_list = [calls[i][2] for i = 1:N]
@@ -218,7 +221,14 @@ function distributed_kernel_ichol(X::Array{Float64,2},
     while trace > tol && k <= maxdim
 
         # Add pivot to local indexes
-        refs = @spawnat pids[pivot_proc_index] pivot_data(localpart(X), localpart(Y), localpart(H), local_pivot_index, k, sqrt(pivot))
+        refs = @spawnat pids[pivot_proc_index] pivot_data(
+          localpart(X),
+          localpart(Y),
+          localpart(H),
+          local_pivot_index,
+          k,
+          sqrt(pivot)
+        )
         X_pivot, Y_pivot, H_pivot = fetch(refs)
         I[pivot_proc_index] = vcat(I[pivot_proc_index], [local_pivot_index])
 

@@ -3,6 +3,7 @@
 include("types.jl")
 include("svm.jl")
 include("ichol.jl")
+include("parallel_ichol.jl")
 
 X = distribute(rand(10000, 20));
 XX = convert(Array, X);
