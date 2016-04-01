@@ -17,7 +17,8 @@ predictor = svm_ipm_dual(
     1e-8,
     2,
     1e-8,
-    50
+    50,
+    false
 );
 
 grid = [0.0 0.0];

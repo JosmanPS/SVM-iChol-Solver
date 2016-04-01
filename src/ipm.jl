@@ -195,7 +195,8 @@ function svm_ipm_dual(X::Array{Float64,2},
                       tol_ichol::Float64,
                       maxdim::Int64,
                       tol_ipm::Float64,
-                      maxiter::Int64)
+                      maxiter::Int64,
+                      parallel::Bool)
     #=
 
     Description:
@@ -213,6 +214,7 @@ function svm_ipm_dual(X::Array{Float64,2},
         - maxdim : max dimension of the approximation matrix.
         - tol_ipm : dual gap tolerance.
         - maxiter : maximum number of iterations.
+        - parallel : boolean for parallelization.
 
     Output:
     -------
@@ -242,7 +244,11 @@ function svm_ipm_dual(X::Array{Float64,2},
 
     # Kernel Matrix approximation
     # ---------------------------
-    V = kernel_ichol(X, y, kernel, tol_ichol, maxdim)
+    if parallel
+      V = distributed_kernel_ichol(X, y, kernel, tol_ichol, maxdim)
+    else
+      V = kernel_ichol(X, y, kernel, tol_ichol, maxdim)
+    end
 
     @printf "  iter      mu           sigma           beta \n"
     @printf "---------------------------------------------------- \n"
