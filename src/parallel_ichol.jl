@@ -196,7 +196,7 @@ function distributed_kernel_ichol(X::Array{Float64,2},
     I = [[0] for i in 1:N]
 
     v = dzeros(n, 1)
-    H = dzeros(n, maxdim)
+    H = dzeros((n, maxdim), pids, [N,1])
     k = 1
 
     # Initial diagonal Kernel matrix
