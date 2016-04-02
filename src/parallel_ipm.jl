@@ -1,5 +1,5 @@
 
-function _compute_HDZ(H::Array, Dz::Array)
+@everywhere function _compute_HDZ(H::Array, Dz::Array)
     n, m = size(H)
     col = Dz .* H
     col = [sum(col[:, i]) for i=1:m]
@@ -7,14 +7,14 @@ function _compute_HDZ(H::Array, Dz::Array)
 end
 
 
-"""Compute H'D^{-1}H."""
-function _compute_HDH(H::Array, d::Array)
+@everywhere function _compute_HDH(H::Array, d::Array)
     DH = H ./ d
     return H' * DH
 end
 
 
-function _compute_u(H::Array, d::Array, Dz::Array, t2::Array, u::Array)
+@everywhere function _compute_u(H::Array, d::Array, Dz::Array,
+    t2::Array, u::Array)
     n = length(u)
     u[1:n] = Dz - H * t2 ./ d
 end
@@ -24,7 +24,7 @@ end
     parallel_smw(d::DArray, H::DArray, z::DArray)
 
 This method solves the problem:
-$$ (D + HH^T) u = z $$
+(D + HH^T) u = z
 Where D is a diagonal matrix with values in `d`.
 The problem is solved using Sherman-Morrison-Woodburry formula in parallel.
 """
@@ -75,14 +75,14 @@ function parallel_step(x::DArray, dx::DArray, tau::Float64)
 end
 
 
-function svm_ipm_dual(X::Array{Float64,2},
-                      y::Array{Float64,2},
-                      C::Float64,
-                      kernel::SVM_kernel,
-                      tol_ichol::Float64,
-                      maxdim::Int64,
-                      tol_ipm::Float64,
-                      maxiter::Int64)
+function parallel_svm_ipm(X::Array{Float64,2},
+                          y::Array{Float64,2},
+                          C::Float64,
+                          kernel::SVM_kernel,
+                          tol_ichol::Float64,
+                          maxdim::Int64,
+                          tol_ipm::Float64,
+                          maxiter::Int64)
     #=
 
     Description:
@@ -126,9 +126,9 @@ function svm_ipm_dual(X::Array{Float64,2},
     else
         alpha = dones(n)
     end
-    b = dones(1, 1)
-    s = dones(n, 1)
-    xi = dones(n, 1)
+    b = dones(1)
+    s = dones(n)
+    xi = dones(n)
     C_alpha = C - alpha
     mu = (alpha' * s + C_alpha' * xi)[1]
     mu = (alpha' * s + C_alpha' * xi)[1]

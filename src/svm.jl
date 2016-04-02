@@ -168,7 +168,3 @@ function predict_matrix(predictor::SVM_predictor,
     return preds
 
 end
-
-
-include("ichol.jl")
-include("ipm.jl")

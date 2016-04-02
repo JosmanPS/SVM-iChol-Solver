@@ -110,9 +110,9 @@ function smw_solve(d::Array{Float64,2},
 end
 
 
-function ipmstep(x::Array{Float64,2},
-                 dx::Array{Float64,2},
-                 tau::Float64)
+@everywhere function ipmstep(x::Array{Float64,2},
+                             dx::Array{Float64,2},
+                             tau::Float64)
     #=
 
     Description:
