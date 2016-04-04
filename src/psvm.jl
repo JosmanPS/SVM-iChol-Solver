@@ -1,12 +1,112 @@
 # VERSION >= v"0.4.0-dev+6641" && __precompile__()
 # module ParallelSVM
 
+typealias Future RemoteRef
+
 importall Base
+import Base.Callable
 @everywhere using DistributedArrays
+
+
+## DistributedArrays modifications
 
 function -(x::DArray) return -1 .* x end
 (-)(x::Number, A::DArray) = x .- A
 
+map_localparts(f::Callable, d::DArray) = DArray(i->f(localpart(d)), d)
+map_localparts(f::Callable, d1::DArray, d2::DArray) = DArray(d1) do I
+    f(localpart(d1), localpart(d2))
+end
+function map_localparts!(f::Callable, d::DArray)
+    @sync for p in procs(d)
+        @async remotecall_fetch((f,d)->(f(localpart(d)); nothing), p, f, d)
+    end
+    return d
+end
+
+# Here we assume all the DArrays have
+# the same size and distribution
+map_localparts(f::Callable, As::DArray...) = DArray(I->f(map(localpart, As)...), As[1])
+
+for f in (:.+, :.-, :.*, :./, :.%, :.<<, :.>>, :div, :mod, :rem, :&, :|, :$)
+    @eval begin
+        ($f){T}(A::DArray{T}, B::Number) = map_localparts(r->($f)(r, B), A)
+        ($f){T}(A::Number, B::DArray{T}) = map_localparts(r->($f)(A, r), B)
+    end
+end
+
+"""
+    procs(d::DArray)
+
+Get the vector of processes storing pieces of DArray `d`.
+"""
+Base.procs(d::DArray) = d.pids
+
+chunktype{T,N,A}(d::DArray{T,N,A}) = A
+
+## chunk index utilities ##
+
+# decide how to divide each dimension
+# returns size of chunks array
+function defaultdist(dims, pids)
+    dims = [dims...]
+    chunks = ones(Int, length(dims))
+    np = length(pids)
+    f = sort!(collect(keys(factor(np))), rev=true)
+    k = 1
+    while np > 1
+        # repeatedly allocate largest factor to largest dim
+        if np % f[k] != 0
+            k += 1
+            if k > length(f)
+                break
+            end
+        end
+        fac = f[k]
+        (d, dno) = findmax(dims)
+        # resolve ties to highest dim
+        dno = last(find(dims .== d))
+        if dims[dno] >= fac
+            dims[dno] = div(dims[dno], fac)
+            chunks[dno] *= fac
+        end
+        np = div(np, fac)
+    end
+    return chunks
+end
+
+# get array of start indexes for dividing sz into nc chunks
+function defaultdist(sz::Int, nc::Int)
+    if sz >= nc
+        return round(Int, linspace(1, sz+1, nc+1))
+    else
+        return [[1:(sz+1);], zeros(Int, nc-sz);]
+    end
+end
+
+"""
+     distribute(A[; procs, dist])
+
+Convert a local array to distributed.
+
+`procs` optionally specifies an array of process IDs to use. (defaults to all workers)
+`dist` optionally specifies a vector or tuple of the number of partitions in each dimension
+"""
+function distribute(A::AbstractArray;
+    procs = workers()[1:min(nworkers(), maximum(size(A)))],
+    dist = defaultdist(size(A), procs))
+
+    owner = myid()
+    rr = Future()
+    put!(rr, A)
+    d = DArray(size(A), procs, dist) do I
+        remotecall_fetch(() -> fetch(rr)[I...], owner)
+    end
+    return d
+end
+
+
+## PSVM begins
 
 @everywhere type SVM_kernel
     kernel::AbstractString
@@ -251,8 +351,9 @@ function distributed_kernel_ichol(X::Array{Float64,2},
     maxdim::Int64)
 
     n, ~ = size(X)
-    X = distribute(X)
-    Y = distribute(Y)
+    N = min(n, length(workers()))
+    X = distribute(X; dist=[N,1])
+    Y = distribute(Y; dist=[N,1])
 
     indexes = X.indexes
     pids = X.pids
@@ -484,6 +585,7 @@ function svm_ipm_dual(X::Array{Float64,2},
 
     mu = (alpha' * s + C_alpha' * xi)[1]
     mu /= 2*n
+    B = 1
     tol_ipm *= 1 + mu
 
     # Kernel Matrix approximation
@@ -500,7 +602,7 @@ function svm_ipm_dual(X::Array{Float64,2},
 
 
 
-    while mu > tol_ipm && iter < maxiter
+    while mu > tol_ipm && iter < maxiter && B > tol_ipm
 
         # Solve predictor equations
         # --------------------------
@@ -707,9 +809,10 @@ function parallel_svm_ipm(X::Array{Float64,2},
     # Initial values
     # ---------------
     n, m = size(X)
+    N = min(n, length(workers()))
     V = distributed_kernel_ichol(X, y, kernel, tol_ichol, maxdim)
-    V = distribute(full(V))
-    X = distribute(X)
+    V = distribute(full(V); dist=[N,1])
+    X = distribute(X; dist=[N,1])
     y = Array{Float64}([y[i] for i = 1:n])
     y = distribute(y)
     iter = 1
@@ -727,25 +830,23 @@ function parallel_svm_ipm(X::Array{Float64,2},
     b = ones(1)
     s = dones(n)
     xi = dones(n)
-    C_alpha = (C - alpha) * -1  # Bug in DistributedArrays
+    C_alpha = C - alpha
 
     mu = dot(alpha, s) + dot(C_alpha, xi)
     mu /= 2*n
+    B = 1
     tol_ipm *= 1 + mu
 
     @printf "  iter      mu           sigma           beta \n"
     @printf "---------------------------------------------------- \n"
     @printf " %3i     %1.4e     %1.4e     %1.4e  \n" iter mu 0.0 0.0
 
-    A_sig_mu = dzeros(n)
-    CA_sig_mu = dzeros(n)
-
-    while mu > tol_ipm && iter < maxiter
+    while mu > tol_ipm && iter < maxiter && B > tol_ipm
 
         # Solve predictor equations
         # --------------------------
         D = s ./ alpha + xi ./ C_alpha
-        r = 1 -(- b[1] * y - s + xi - C * xi ./ C_alpha)
+        r = -1 -b[1] * y - s + xi - C * xi ./ C_alpha
         QDy = parallel_smw(D, V, y)
         QDr = parallel_smw(D, V, r)
 
@@ -770,13 +871,9 @@ function parallel_svm_ipm(X::Array{Float64,2},
         # Solve corrector equations
         # -------------------------
         sig_mu = sigma * mu
-        A_sig_mu *= 0
-        A_sig_mu += sig_mu
-        A_sig_mu = A_sig_mu ./ alpha
+        A_sig_mu = sig_mu ./ alpha
         A_da_ds = D_alpha .* D_s ./ alpha
-        CA_sig_mu *= 0
-        CA_sig_mu += sig_mu
-        CA_sig_mu = CA_sig_mu ./ C_alpha
+        CA_sig_mu = sig_mu ./ C_alpha
         CA_da_dxi = D_alpha .* D_xi ./ C_alpha
 
         w1 = A_sig_mu - A_da_ds
@@ -804,7 +901,7 @@ function parallel_svm_ipm(X::Array{Float64,2},
         b += B * D_b
         s += B_s * D_s
         xi += B_xi * D_xi
-        C_alpha = -1 * (C - alpha)
+        C_alpha = C - alpha
         mu = dot(alpha, s) + dot(C_alpha, xi)
         mu /= 2*n
         iter += 1
