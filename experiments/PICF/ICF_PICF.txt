@@ -1,0 +1,72 @@
+# linear
+# ----------
+t1 = [
+0.042448
+0.440543
+20.5963
+71.312
+1069.29
+]
+
+# parallel-4
+# -----------
+t2 = [
+0.0493077
+0.467353
+7.16331
+24.0985
+280.152
+]
+
+# parallel-6
+# -----------
+t3 = [
+0.0832739
+0.662445
+7.82093
+23.9263
+271.787
+]
+
+# parallel-8
+# ------------
+t4 = [
+0.100676
+0.840491
+10.1433
+25.5224
+258.765
+]
+
+n = vcat(
+    collect(1:5),
+    collect(1:5),
+    collect(1:5),
+    collect(1:5)
+)
+
+times = vcat(
+    t1, t2, t3, t4
+)
+
+labels = vcat(
+    ["ICF" for i = 1:5],
+    ["PICF-4" for i = 1:5],
+    ["PICF-6" for i = 1:5],
+    ["PICF-8" for i = 1:5]
+)
+
+
+plot(
+    layer(x=n, y=times, color=labels, Geom.line, order=1),
+    layer(x=n, y=times, color=labels, Geom.point, order=2),
+    Guide.xlabel("log_10(variables)"),
+    Guide.ylabel("CPU(s)")
+)
+
+plot(
+    layer(x=n, y=log(times), color=labels, Geom.line, order=1),
+    layer(x=n, y=log(times), color=labels, Geom.point, order=2),
+    Guide.xlabel("log_10(variables)"),
+    Guide.ylabel("log(CPU(s))")
+)

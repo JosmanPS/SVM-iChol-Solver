@@ -1,0 +1,73 @@
+
+
+# ICF
+# -------
+t1 = [
+0.0089075
+0.0495858
+9.78425
+219.394
+7162.94
+]
+
+# PICF-4
+# ---------
+t2 = [
+0.0451031
+0.399619
+3.09568
+13.8909
+358.167
+]
+
+# PICF-6
+# ----------
+t3 = [
+0.0706174
+0.587776
+3.66454
+14.2703
+340.143
+]
+
+# PICF-8
+# --------
+t4 = [
+0.0901903
+0.794002
+4.76431
+13.7173
+322.261
+]
+
+n = vcat(
+    collect(1:5),
+    collect(1:5),
+    collect(1:5),
+    collect(1:5)
+)
+
+times = vcat(
+    t1, t2, t3, t4
+)
+
+labels = vcat(
+    ["ICF" for i = 1:5],
+    ["PICF-4" for i = 1:5],
+    ["PICF-6" for i = 1:5],
+    ["PICF-8" for i = 1:5]
+)
+
+plot(
+    layer(x=n, y=times, color=labels, Geom.line, order=1),
+    layer(x=n, y=times, color=labels, Geom.point, order=2),
+    Guide.xlabel("log_10(instancias)"),
+    Guide.ylabel("CPU(s)")
+)
+
+plot(
+    layer(x=n, y=log(times), color=labels, Geom.line, order=1),
+    layer(x=n, y=log(times), color=labels, Geom.point, order=2),
+    Guide.xlabel("log_10(instancias)"),
+    Guide.ylabel("log(CPU(s))")
+)
