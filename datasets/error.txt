@@ -1,0 +1,28 @@
+
+error = [
+1
+0.14833
+0.13328
+0.155607
+0.138529
+0.01
+]
+
+approxk = [
+    0
+    0.2
+    0.4
+    0.6
+    0.8
+    1
+]
+
+error *= 100
+approxk *= 100
+
+plot(
+    layer(x=approxk, y=error, Geom.line, order=1),
+    layer(x=approxk, y=error, Geom.point, order=2),
+    Guide.xlabel("% Aproximación del Kernel"),
+    Guide.ylabel("% Error de entrenamiento")
+)
